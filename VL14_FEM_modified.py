@@ -1,16 +1,21 @@
 """Mechanik der Faserverbundwerkstoffe, FEM Code fuer orthotrope, duenne Plattenstrukturen."""
-__author__ = "B. Emek Abali"
-__license__  = "GNU LGPL Version 3.0 or later"
+__author__  = "B.M. Voß" #original by B. Emek Abali
+__license__ = "GNU LGPL Version 3.0 or later"
+
+"""my modifications are mostly of an organisational nature, i.e. putting
+the performed actions into proper objects."""
+
 
 # FEniCS Pakete bereitstellen:
 from fenics import *
 import numpy
-tic()
+
 class Aufgabe:
     def __init__(self):
         # Optimierung fuer schnelleres Kompilieren:
         parameters["form_compiler"]["cpp_optimize"] = True
     def set_geometry(self,x=500.0,y=50.0,z=20.0,ppl=0.1):
+        print("initializing geometry with",x,y,z,"and",ppl,"controlpoints per lengthunit")
         # Die Geometrie:
         self.xlength = x #in mm
         self.ylength = y #in mm
@@ -20,39 +25,55 @@ class Aufgabe:
         zps          = int(z*ppl)
         self.mesh    = BoxMesh(Point(0, 0, 0), Point(self.xlength, self.ylength, self.zlength), xps,yps,zps)
 
-    def set_vectorspace(self):
+    def set_vectorspace(self,typ='CG',dim=1):
+        print("initializing the Vectorspace of type",typ,"with",dim,"dimensions")
         # Vektorraum fuer Verchiebungen mit linearen Elementen:
-        self.V = VectorFunctionSpace(self.mesh, 'CG', 1)
+        self.V = VectorFunctionSpace(self.mesh, typ, dim)
         
-    def set_boundaries(self):
+    def set_boundaries(self,left=True,right=True):
+        print("initializing boundaries")
         # Berandung:
+        
         self.boundaries = FacetFunction('size_t',self.mesh)
         self.domains    = CellFunction('size_t',self.mesh)
-        self.left       = CompiledSubDomain('near(x[0], 0) && on_boundary')
-        self.right      = CompiledSubDomain('near(x[0], length) && on_boundary',length = self.xlength)
-        
-#       self.top   = CompiledSubDomain('near(x[2], zl) && (x[0]-a)*(x[0]-a) + (x[1]-b)*(x[1]-b) < r*r && on_boundary', zl=zlength, a=200.0, b=10.0, r=20.0)
-        self.top    = CompiledSubDomain('near(x[2], zl) && x[0] < a && x[0] > b && on_boundary', zl=self.zlength, a=200.0, b=150.0)
-
-        # Zuerst alle als 0 markieren, dann die rechte Berandung als 
+        if left == True:
+            self.left       = CompiledSubDomain('near(x[0], 0) && on_boundary')
+        if right == True:
+            self.right      = CompiledSubDomain('near(x[0], length) && on_boundary',length = self.xlength)
+        #near x[2] is z and in x-a * (x-a)**2*(y-b)**2 < r**2 -> Kreisdefinition mit punkt x,y = :
+         # Zuerst alle als 0 markieren, dann die rechte Berandung als 
         self.boundaries.set_all(0)
-        # Beim Integrieren wird ds(1) ein Flaechenintegral ueber die obere Berandung fuer die aufgebrachte Kraft bedeuten
-        self.top.mark(self.boundaries, 1)
         self.dA     = Measure('ds')[self.boundaries]
         self.V      = Measure('dx')[self.domains]
-        self.hat_t  = Expression(('0.0','0.0','A'),A=20.0) #in MPa
+    
+    #fuck this I'll do it locally.
+    #def force_domain(self,definition_string="",**inpts):
+#       self.top   = CompiledSubDomain('near(x[2], zl) && (x[0]-a)*(x[0]-a) + (x[1]-b)*(x[1]-b) < r*r && on_boundary', zl=zlength, a=200.0, b=10.0, r=20.0)
+        #self.top    = CompiledSubDomain('near(x[2], zl) && x[0] < a && x[0] > b && on_boundary', zl=self.zlength, a=200.0, b=150.0)
+        #fuck ok, das braucht anscheinend immer eigentständige formulierungen...
+        
+        # Beim Integrieren wird ds(1) ein Flaechenintegral ueber die obere Berandung fuer die aufgebrachte Kraft bedeuten
+        #self.top.mark(self.boundaries, 1)
+    
+    #this too I will do locally.
+    #def set_forces(self):
+        #self.hat_t = Expression(('0.0','A','0.0'),A=10.0) #in MPa
         #self.hat_t = Expression(('0.0','0.0','A*x[1]/yl'),A=150.0,yl=ylength)
 
-    def set_dirichlet(self):
+    def set_dirichlet(self,l=[(self.V,self.left),(self.V,self.right)]):
         # Dirichlet Randbedingungen:
         self.null = Constant((0.0,0.0,0.0))
-        self.bc1  = DirichletBC(self.V, self.null, self.left)
-        self.bc2  = DirichletBC(self.V, self.null, self.right)
-        self.bc   = [self.bc1,self.bc2]
+        self.bc   = []
+        for bcset in l:
+            self.bc.append(DirichletBC(bcset[0],self.null,bcset[1]))
+        #self.bc1 = DirichletBC(self.V, self.null, self.left)
+        #self.bc2 = DirichletBC(self.V, self.null, self.right)
+        #self.bc  = [self.bc1,self.bc2]
+        
     def trad_form(self):
         # Die variationelle Formulierung:
-        self.u     = TrialFunction(V)
-        self.del_u = TestFunction(V)
+        self.u     = TrialFunction(self.V)
+        self.del_u = TestFunction(self.V)
 
     def VoigtToTensor(self,A):
         A11, A12, A13, A14, A15, A16 = A[0,0], A[0,1], A[0,2], A[0,3], A[0,4], A[0,5]
@@ -80,7 +101,10 @@ class Aufgabe:
         [ [A41,A46,A45], [A46,A42,A44], [A45,A44,A43]] , \
         [ [A31,A36,A35], [A36,A32,A34], [A35,A34,A33]] ] \
         ])
+        
     def set_isotropy(self,nu=0.3,E=210000.0 ):
+        """setting isotrope values"""
+        
         # Isotrop:
 
         self.nu = nu
@@ -95,8 +119,9 @@ class Aufgabe:
         [0, 0, 0, 0, 1./self.G, 0],\
         [0, 0, 0, 0, 0, 1/self.G]  ])
 
-        self.C_voigt = numpy.linalg.inv(S_voigt)
-        self.C       = VoigtToTensor(C_voigt)
+        self.C_voigt = numpy.linalg.inv(self.S_voigt)
+        self.C       = VoigtToTensor(self.C_voigt)
+        
     def set_Kronecker_delta(self,dim=3,indices=4):
         # Kronecker delta in 3D
         self.delta                  = Identity(dim)
@@ -117,6 +142,7 @@ class Aufgabe:
     def solve(self):
         self.disp    = Function(self.V)
         solve(self.a == self.L , sefl.disp, self.bc)
+        
     def output(self):
         file = File('Verschiebungen.pvd')
         file << self.disp
@@ -153,13 +179,13 @@ class Aufgabe:
         pylab.xlabel(r'$\varepsilon_{33}$ in $\%$')
         pylab.ylabel(r'$\sigma_{33}$ in MPa')
         pylab.grid(True)
-        hat_t = Expression(('0.0','0.0','A'),A=0)
+        hat_t                   = Expression(('0.0','0.0','A'),A=0)
         stress_plot,strain_plot = [0],[0]
-        P = Point(xlength/2., ylength/2., zlength/2.)
+        P                       = Point(xlength/2., ylength/2., zlength/2.)
         for tau in numpy.linspace(0.,1.,5):
-            hat_t.A = 2000.*tau
-            L = hat_t[i]*del_u[i]*dA(1)
-            solve(a == L , disp, bc)
+            hat_t.A      = 2000.*tau
+            L            = hat_t[i]*del_u[i]*dA(1)
+            solve(a      = = L , disp, bc)
             stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
             strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
             print stress_value, strain_value
@@ -170,9 +196,15 @@ class Aufgabe:
             
     def execute_Beispiel(self):
         """simply replicates the execution order of the script"""
+        tic()
         self.set_geometry()
         self.set_vectorspace()
         self.set_boundaries()
+        self.top        = CompiledSubDomain('near(x[2], zl) && (x[0]-a)*(x[0]-a) + (x[1]-b)*(x[1]-b) < r*r && on_boundary', zl=zlength, a=200.0, b=10.0, r=20.0)
+        self.top.mark(self.boundaries,1)
+        self.hat_t = Expression(('0.0','0.0','A'),A=20.0) #in MPa
+        #self.set_forces()
+        
         self.set_dirichlet()
         self.trad_form()
         self.VoigtToTensor()
@@ -188,8 +220,80 @@ class Aufgabe:
         self.output2()
         self.sigma_epsilon_plot()
         
-        #self.
+    def execute_13_1_a(self):
+        """copy of the execute function with changed geometry and properties"""
+        tic()
+        #setting geometry to 100x 10y 10z every 0.3 lengthunits a controlpoint
+        self.set_geometry(100,10,10,0.3)
         
+        self.set_vectorspace()
+        #only want one side set this time
+        
+        self.set_boundaries()#will form both by default
+        
+        #local definition of force area
+        self.top    = CompiledSubDomain('near(x[1], yl) && on_boundary', yl=self.ylength)
+        top.mark(boundaries, 1)
+        
+        
+        self.hat_t = Expression(('0.0','A','0.0'),A=10.0) #in MPa
+        #self.set_forces()
+        self.set_dirichlet([(self.V,self.left),(self.V,self.right)])
+        self.trad_form()
+        self.VoigtToTensor()
+        self.set_isotropy()
+        self.set_Kronecker_delta()
+        self.set_Dehnungstensor()
+        self.set_Cauchy_Spannungstensor()
+        self.set_goal_functions()
+        self.solve()
+        self.output()
+        self.F_nach_Tsai_Hill()
+        self.set_L_Zugfestigkeit()
+        self.output2()
+        self.sigma_epsilon_plot()
+        
+    def execute_13_1_b(self):
+        """copy of the execute function with changed geometry and properties"""
+        tic()
+        #setting geometry to 100x 100y 10z every 0.3 lengthunits a controlpoint
+        self.set_geometry(100,100,3,0.3)
+        
+        self.set_vectorspace()
+        #two sides set this time
+        self.set_boundaries(True,False)
+        
+        #because fenics is shitty you pass c++ strings here.
+        self.top    = CompiledSubDomain('near(x[1], yl) && on_boundary', yl=self.ylength)
+        top.mark(boundaries, 1)
+        
+        #this is the same boring force distribution as in the lecture
+        self.hat_t = Expression(('0.0','0.0','A'),A=20.0) #in MPa
+        #self.set_forces()
+        self.set_dirichlet([(self.null,self.left)])
+        self.trad_form()
+        self.VoigtToTensor()
+        self.set_isotropy()
+        self.set_Kronecker_delta()
+        self.set_Dehnungstensor()
+        self.set_Cauchy_Spannungstensor()
+        self.set_goal_functions()
+        self.solve()
+        self.output()
+        self.F_nach_Tsai_Hill()
+        self.set_L_Zugfestigkeit()
+        self.output2()
+        self.sigma_epsilon_plot()
+    def execute_13_2(self):
+        print("Nothing defined yet")
+    def execute_13_3(self):
+        print("Nothing defined yet")
+    def execute_solve_13():
+        self.execute_13_1_a()
+        self.execute_13_1_b()
+        self.execute_13_2()
+        self.execute_13_3()
+
 if __name__=="__main__":
     Beispiel=Aufgabe()
     Beispiel.execute_Beispiel()
