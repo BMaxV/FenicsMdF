@@ -5,6 +5,10 @@ __license__ = "GNU LGPL Version 3.0 or later"
 # FEniCS Pakete bereitstellen:
 from fenics import *
 import numpy
+
+import matplotlib as mpl
+import matplotlib.pyplot as pylab
+
 tic()
 # Optimierung fuer schnelleres Kompilieren:
 parameters["form_compiler"]["cpp_optimize"] = True
@@ -69,125 +73,137 @@ def VoigtToTensor(A):
 	[ [A31,A36,A35], [A36,A32,A34], [A35,A34,A33]] ] \
 	])
 
-if False:
-    print "Stahl"
-    # Isotrop:
-    nu      = 0.3
-    E       = 210000.0 #MPa
-    G       = E/(2.0*(1.0+nu))
-    S_voigt = numpy.array([ \
-    [1./E, -nu/E, -nu/E, 0, 0, 0],\
-    [-nu/E, 1./E, -nu/E, 0, 0, 0],\
-    [-nu/E, -nu/E, 1./E, 0, 0, 0],\
-    [0, 0, 0, 1./G, 0, 0],\
-    [0, 0, 0, 0, 1./G, 0],\
-    [0, 0, 0, 0, 0, 1/G]  ])
-if False:
-    print "Aluminium"
-    # Isotrop:
-    nu      = 0.3
-    E       = 70000.0 #MPa
-    G       = E/(2.0*(1.0+nu))
-    S_voigt = numpy.array([ \
-    [1./E, -nu/E, -nu/E, 0, 0, 0],\
-    [-nu/E, 1./E, -nu/E, 0, 0, 0],\
-    [-nu/E, -nu/E, 1./E, 0, 0, 0],\
-    [0, 0, 0, 1./G, 0, 0],\
-    [0, 0, 0, 0, 1./G, 0],\
-    [0, 0, 0, 0, 0, 1/G]  ])
-if False:
-    print "Magnesium"
-    # Isotrop:
-    nu = 0.3
-    E  = 40000.0 #MPa
-    G  = E/(2.0*(1.0+nu))
-
-    S_voigt = numpy.array([ \
-    [1./E, -nu/E, -nu/E, 0, 0, 0],\
-    [-nu/E, 1./E, -nu/E, 0, 0, 0],\
-    [-nu/E, -nu/E, 1./E, 0, 0, 0],\
-    [0, 0, 0, 1./G, 0, 0],\
-    [0, 0, 0, 0, 1./G, 0],\
-    [0, 0, 0, 0, 0, 1/G]  ])
-
-if True:
-    print "CFK"
-    print "not defined yet"
-    xx  = 127922
-    n12 = 0.014
-    yy  = 6171
-    n21 = 0.284
-    xy  = n12*xx/(1-(n12*n21))
-    G   = 2232
-
-    S_voigt = numpy.array([ \
-    [xx, xy, xy, 0, 0, 0],\
-    [xy, yy, xy, 0, 0, 0],\
-    [xy, xy, yy, 0, 0, 0],\
-    [0, 0, 0, G, 0, 0],\
-    [0, 0, 0, 0, G, 0],\
-    [0, 0, 0, 0, 0, G ]  ])
-    
-C_voigt = numpy.linalg.inv(S_voigt)
-C = VoigtToTensor(C_voigt)
-# Kronecker delta in 3D
-delta = Identity(3)
-i,j,k,l = indices(4)
-# Dehnungstensor:
-eps = as_tensor(1.0/2.0*(u[i].dx(j)+u[j].dx(i)) , (i,j))
-# Cauchy Spannungstensor:
-sigma = as_tensor(C[i,j,k,l]*eps[k,l] , (i,j))
-
-a = sigma[j,i]*del_u[i].dx(j)*dV
-L = hat_t[i]*del_u[i]*dA(1)
-
-disp = Function(V)
-solve(a == L , disp, bc)
-
-file = File('Verschiebungen.pvd')
-file << disp
-
-# Berechnung von F nach Tsai-Hill
-eps_ = as_tensor(1.0/2.0*(disp[i].dx(j)+disp[j].dx(i)) , (i,j))
-s_ = as_tensor(C[i,j,k,l]*eps_[k,l] , (i,j))
-# L-Zugfestigkeit = T-Zugfestigkeit (Orthotropie), Schubfestigkeit 
-sL, sT, tau = 320.0, 320.0, 55.0 #MPa
-F_ = as_tensor((s_[0,0]/sL)**2 + (s_[1,1]/sT)**2 - s_[0,0]*s_[1,1]/sT**2 + (s_[0,1]/tau)**2, ())
-F = project(F_, FunctionSpace(mesh, 'CG', 1))
-
-file = File('Tsai_Hill_F.pvd')
-file << F
-print 'Fertig in ',toc(),' Sekunden!'
-
-#sigma/epsilon plot
-import matplotlib as mpl
-mpl.use('Agg')
-import matplotlib.pyplot as pylab
-pylab.rc('text', usetex=True )
-pylab.rc('font', family='serif', serif='cm', size=25 )
-pylab.rc('legend', fontsize=25)
-pylab.rc(('xtick.major','ytick.major'), pad=15)
+l=["Stahl","Aluminium","Magnesium"]
 
 fig = pylab.figure(1, figsize=(12,8))
-fig.clf()
-pylab.subplots_adjust(bottom=0.18)
-pylab.subplots_adjust(left=0.18)
-pylab.xlabel(r'$\varepsilon_{33}$ in $\%$')
-pylab.ylabel(r'$\sigma_{33}$ in MPa')
-pylab.grid(True)
-hat_t                   = Expression(('0.0','0.0','A'),A=0)
-stress_plot,strain_plot = [0],[0]
-P                       = Point(xlength/2., ylength/2., zlength/2.)
-for tau in numpy.linspace(0.,1.,5):
-	hat_t.A = 2000.*tau
-	L = hat_t[i]*del_u[i]*dA(1)
-	solve(a == L , disp, bc)
-	stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
-	strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
-	print stress_value, strain_value
-	stress_plot.append( stress_value )
-	strain_plot.append( strain_value*100. )
-	pylab.plot(strain_plot, stress_plot,markersize=6, linewidth=3)
+for w in l:
+    print w
+    print w 
+    print w
+    if w=="Stahl":
+        print "Stahl"
+        # Isotrop:
+        nu      = 0.3
+        E       = 210000.0 #MPa
+        G       = E/(2.0*(1.0+nu))
+        S_voigt = numpy.array([ \
+        [1./E, -nu/E, -nu/E, 0, 0, 0],\
+        [-nu/E, 1./E, -nu/E, 0, 0, 0],\
+        [-nu/E, -nu/E, 1./E, 0, 0, 0],\
+        [0, 0, 0, 1./G, 0, 0],\
+        [0, 0, 0, 0, 1./G, 0],\
+        [0, 0, 0, 0, 0, 1/G]  ])
+        
+    if w=="Aluminium":
+        print "Aluminium"
+        # Isotrop:
+        nu      = 0.3
+        E       = 70000.0 #MPa
+        G       = E/(2.0*(1.0+nu))
+        S_voigt = numpy.array([ \
+        [1./E, -nu/E, -nu/E, 0, 0, 0],\
+        [-nu/E, 1./E, -nu/E, 0, 0, 0],\
+        [-nu/E, -nu/E, 1./E, 0, 0, 0],\
+        [0, 0, 0, 1./G, 0, 0],\
+        [0, 0, 0, 0, 1./G, 0],\
+        [0, 0, 0, 0, 0, 1/G]  ])
+        
+    if w=="Magnesium":
+        print "Magnesium"
+        # Isotrop:
+        nu = 0.3
+        E  = 40000.0 #MPa
+        G  = E/(2.0*(1.0+nu))
 
-pylab.savefig('SpannungsDehnungsDiagramm.pdf')
+        S_voigt = numpy.array([ \
+        [1./E, -nu/E, -nu/E, 0, 0, 0],\
+        [-nu/E, 1./E, -nu/E, 0, 0, 0],\
+        [-nu/E, -nu/E, 1./E, 0, 0, 0],\
+        [0, 0, 0, 1./G, 0, 0],\
+        [0, 0, 0, 0, 1./G, 0],\
+        [0, 0, 0, 0, 0, 1/G]  ])
+
+    if False:
+        print "CFK"
+        print "not defined yet"
+        xx  = 127922
+        n12 = 0.014
+        yy  = 6171
+        n21 = 0.284
+        xy  = n12*xx/(1-(n12*n21))
+        G   = 2232
+
+        S_voigt = numpy.array([ \
+        [xx, xy, xy, 0, 0, 0],\
+        [xy, yy, xy, 0, 0, 0],\
+        [xy, xy, yy, 0, 0, 0],\
+        [0, 0, 0, G, 0, 0],\
+        [0, 0, 0, 0, G, 0],\
+        [0, 0, 0, 0, 0, G ]  ])
+        
+    C_voigt = numpy.linalg.inv(S_voigt)
+    C = VoigtToTensor(C_voigt)
+    # Kronecker delta in 3D
+    delta = Identity(3)
+    i,j,k,l = indices(4)
+    # Dehnungstensor:
+    eps = as_tensor(1.0/2.0*(u[i].dx(j)+u[j].dx(i)) , (i,j))
+    # Cauchy Spannungstensor:
+    sigma = as_tensor(C[i,j,k,l]*eps[k,l] , (i,j))
+
+    a = sigma[j,i]*del_u[i].dx(j)*dV
+    L = hat_t[i]*del_u[i]*dA(1)
+
+    disp = Function(V)
+    solve(a == L , disp, bc)
+
+    file = File('Verschiebungen.pvd')
+    file << disp
+
+    # Berechnung von F nach Tsai-Hill
+    eps_ = as_tensor(1.0/2.0*(disp[i].dx(j)+disp[j].dx(i)) , (i,j))
+    s_ = as_tensor(C[i,j,k,l]*eps_[k,l] , (i,j))
+    # L-Zugfestigkeit = T-Zugfestigkeit (Orthotropie), Schubfestigkeit 
+    sL, sT, tau = 320.0, 320.0, 55.0 #MPa
+    F_ = as_tensor((s_[0,0]/sL)**2 + (s_[1,1]/sT)**2 - s_[0,0]*s_[1,1]/sT**2 + (s_[0,1]/tau)**2, ())
+    F = project(F_, FunctionSpace(mesh, 'CG', 1))
+
+    file = File('Tsai_Hill_F.pvd')
+    file << F
+    print 'Fertig in ',toc(),' Sekunden!'
+
+    #sigma/epsilon plot
+    
+    mpl.use('Agg')
+    
+    pylab.rc('text', usetex=True )
+    pylab.rc('font', family='serif', serif='cm', size=25 )
+    pylab.rc('legend', fontsize=25)
+    pylab.rc(('xtick.major','ytick.major'), pad=15)
+
+    
+    #fig.clf()
+    pylab.subplots_adjust(bottom=0.18)
+    pylab.subplots_adjust(left=0.18)
+    pylab.xlabel(r'$\varepsilon_{33}$ in $\%$')
+    pylab.ylabel(r'$\sigma_{33}$ in MPa')
+    pylab.grid(True)
+
+    hat_t                   = Expression(('0.0','0.0','A'),A=0)
+    stress_plot,strain_plot = [0],[0]
+    P                       = Point(xlength/2., ylength/2., zlength/2.)
+
+    for tau in numpy.linspace(0.,1.,5):
+        hat_t.A = 2000.*tau
+        L = hat_t[i]*del_u[i]*dA(1)
+        solve(a == L , disp, bc)
+        stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
+        strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
+        print stress_value, strain_value
+        stress_plot.append( stress_value )
+        strain_plot.append( strain_value*100. )
+    pylab.plot(strain_plot, stress_plot,label=w,markersize=6, linewidth=3)
+
+pylab.legend()
+pylab.savefig('SpannungsDehnungsDiagramm.png')
 

@@ -27,7 +27,6 @@ boundaries.set_all(0)
 right.mark(boundaries, 1)
 dA     = Measure('ds')[boundaries]
 dV     = Measure('dx')[domains]
-#tried y
 hat_t  = Expression(('A','0.0','0.0'),A=20.0) #in MPa
 #hat_t = Expression(('0.0','0.0','A*x[1]/yl'),A=150.0,yl=ylength)
 
@@ -131,10 +130,11 @@ if False:
     hat_t                   = Expression(('0.0','0.0','A'),A=0)
     stress_plot,strain_plot = [0],[0]
     P                       = Point(xlength/2., ylength/2., zlength/2.)
+    
     for tau in numpy.linspace(0.,1.,5):
-        hat_t.A = 2000.*tau
-        L = hat_t[i]*del_u[i]*dA(1)
-        solve(a == L , disp, bc)
+        hat_t.A      = 2000.*tau
+        L            = hat_t[i]*del_u[i]*dA(1)
+        solve(a      == L , disp, bc)
         stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
         strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
         print stress_value, strain_value
