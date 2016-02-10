@@ -12,7 +12,7 @@ parameters["form_compiler"]["cpp_optimize"] = True
 xlength = 150.0  #in mm
 ylength = 10.0 #in mm
 zlength = 2.0 #in mm
-mesh    = BoxMesh(Point(0, 0, 0), Point(xlength, ylength, zlength), 50,30,5)
+mesh    = BoxMesh(Point(0, 0, 0), Point(xlength, ylength, zlength), 50,5,3)
 # Vektorraum fuer Verchiebungen mit linearen Elementen:
 V = VectorFunctionSpace(mesh, 'CG', 1)
 # Berandung:
@@ -69,19 +69,65 @@ def VoigtToTensor(A):
 	[ [A31,A36,A35], [A36,A32,A34], [A35,A34,A33]] ] \
 	])
 
-# Isotrop:
-nu = 0.3
-E  = 210000.0 #MPa
-G  = E/(2.0*(1.0+nu))
+if False:
+    print "Stahl"
+    # Isotrop:
+    nu      = 0.3
+    E       = 210000.0 #MPa
+    G       = E/(2.0*(1.0+nu))
+    S_voigt = numpy.array([ \
+    [1./E, -nu/E, -nu/E, 0, 0, 0],\
+    [-nu/E, 1./E, -nu/E, 0, 0, 0],\
+    [-nu/E, -nu/E, 1./E, 0, 0, 0],\
+    [0, 0, 0, 1./G, 0, 0],\
+    [0, 0, 0, 0, 1./G, 0],\
+    [0, 0, 0, 0, 0, 1/G]  ])
+if False:
+    print "Aluminium"
+    # Isotrop:
+    nu      = 0.3
+    E       = 70000.0 #MPa
+    G       = E/(2.0*(1.0+nu))
+    S_voigt = numpy.array([ \
+    [1./E, -nu/E, -nu/E, 0, 0, 0],\
+    [-nu/E, 1./E, -nu/E, 0, 0, 0],\
+    [-nu/E, -nu/E, 1./E, 0, 0, 0],\
+    [0, 0, 0, 1./G, 0, 0],\
+    [0, 0, 0, 0, 1./G, 0],\
+    [0, 0, 0, 0, 0, 1/G]  ])
+if False:
+    print "Magnesium"
+    # Isotrop:
+    nu = 0.3
+    E  = 40000.0 #MPa
+    G  = E/(2.0*(1.0+nu))
 
-S_voigt = numpy.array([ \
-[1./E, -nu/E, -nu/E, 0, 0, 0],\
-[-nu/E, 1./E, -nu/E, 0, 0, 0],\
-[-nu/E, -nu/E, 1./E, 0, 0, 0],\
-[0, 0, 0, 1./G, 0, 0],\
-[0, 0, 0, 0, 1./G, 0],\
-[0, 0, 0, 0, 0, 1/G]  ])
+    S_voigt = numpy.array([ \
+    [1./E, -nu/E, -nu/E, 0, 0, 0],\
+    [-nu/E, 1./E, -nu/E, 0, 0, 0],\
+    [-nu/E, -nu/E, 1./E, 0, 0, 0],\
+    [0, 0, 0, 1./G, 0, 0],\
+    [0, 0, 0, 0, 1./G, 0],\
+    [0, 0, 0, 0, 0, 1/G]  ])
 
+if True:
+    print "CFK"
+    print "not defined yet"
+    xx  = 127922
+    n12 = 0.014
+    yy  = 6171
+    n21 = 0.284
+    xy  = n12*xx/(1-(n12*n21))
+    G   = 2232
+
+    S_voigt = numpy.array([ \
+    [xx, xy, xy, 0, 0, 0],\
+    [xy, yy, xy, 0, 0, 0],\
+    [xy, xy, yy, 0, 0, 0],\
+    [0, 0, 0, G, 0, 0],\
+    [0, 0, 0, 0, G, 0],\
+    [0, 0, 0, 0, 0, G ]  ])
+    
 C_voigt = numpy.linalg.inv(S_voigt)
 C = VoigtToTensor(C_voigt)
 # Kronecker delta in 3D
@@ -141,6 +187,7 @@ for tau in numpy.linspace(0.,1.,5):
 	print stress_value, strain_value
 	stress_plot.append( stress_value )
 	strain_plot.append( strain_value*100. )
-	pylab.plot(strain_plot, stress_plot,'ro-',markersize=6, linewidth=3)
-	pylab.savefig('SpannungsDehnungsDiagramm.pdf')
+	pylab.plot(strain_plot, stress_plot,markersize=6, linewidth=3)
+
+pylab.savefig('SpannungsDehnungsDiagramm.pdf')
 

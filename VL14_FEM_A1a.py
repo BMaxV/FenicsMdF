@@ -25,9 +25,10 @@ right      = CompiledSubDomain('near(x[0], length) && on_boundary',length    = x
 boundaries.set_all(0)
 # Beim Integrieren wird ds(1) ein Flaechenintegral ueber die obere Berandung fuer die aufgebrachte Kraft bedeuten
 right.mark(boundaries, 1)
-dA     = Measure('ds')[boundaries]v
+dA     = Measure('ds')[boundaries]
 dV     = Measure('dx')[domains]
-hat_t  = Expression(('0.0','A','0.0'),A=20.0) #in MPa
+#tried y
+hat_t  = Expression(('A','0.0','0.0'),A=20.0) #in MPa
 #hat_t = Expression(('0.0','0.0','A*x[1]/yl'),A=150.0,yl=ylength)
 
 # Dirichlet Randbedingungen:
@@ -98,47 +99,47 @@ solve(a == L , disp, bc)
 
 file = File('Verschiebungen_A1a.pvd')
 file << disp
+if False:
+    # Berechnung von F nach Tsai-Hill
+    eps_ = as_tensor(1.0/2.0*(disp[i].dx(j)+disp[j].dx(i)) , (i,j))
+    s_ = as_tensor(C[i,j,k,l]*eps_[k,l] , (i,j))
+    # L-Zugfestigkeit = T-Zugfestigkeit (Orthotropie), Schubfestigkeit 
+    sL, sT, tau = 320.0, 320.0, 55.0 #MPa
+    F_ = as_tensor((s_[0,0]/sL)**2 + (s_[1,1]/sT)**2 - s_[0,0]*s_[1,1]/sT**2 + (s_[0,1]/tau)**2, ())
+    F = project(F_, FunctionSpace(mesh, 'CG', 1))
 
-# Berechnung von F nach Tsai-Hill
-eps_ = as_tensor(1.0/2.0*(disp[i].dx(j)+disp[j].dx(i)) , (i,j))
-s_ = as_tensor(C[i,j,k,l]*eps_[k,l] , (i,j))
-# L-Zugfestigkeit = T-Zugfestigkeit (Orthotropie), Schubfestigkeit 
-sL, sT, tau = 320.0, 320.0, 55.0 #MPa
-F_ = as_tensor((s_[0,0]/sL)**2 + (s_[1,1]/sT)**2 - s_[0,0]*s_[1,1]/sT**2 + (s_[0,1]/tau)**2, ())
-F = project(F_, FunctionSpace(mesh, 'CG', 1))
+    file = File('Tsai_Hill_F_A1a.pvd')
+    file << F
+    print 'Fertig in ',toc(),' Sekunden!'
 
-file = File('Tsai_Hill_F_A1a.pvd')
-file << F
-print 'Fertig in ',toc(),' Sekunden!'
+    #sigma/epsilon plot
+    import matplotlib as mpl
+    mpl.use('Agg')
+    import matplotlib.pyplot as pylab
+    pylab.rc('text', usetex=True )
+    pylab.rc('font', family='serif', serif='cm', size=25 )
+    pylab.rc('legend', fontsize=25)
+    pylab.rc(('xtick.major','ytick.major'), pad=15)
 
-#sigma/epsilon plot
-import matplotlib as mpl
-mpl.use('Agg')
-import matplotlib.pyplot as pylab
-pylab.rc('text', usetex=True )
-pylab.rc('font', family='serif', serif='cm', size=25 )
-pylab.rc('legend', fontsize=25)
-pylab.rc(('xtick.major','ytick.major'), pad=15)
-
-fig = pylab.figure(1, figsize=(12,8))
-fig.clf()
-pylab.subplots_adjust(bottom=0.18)
-pylab.subplots_adjust(left=0.18)
-pylab.xlabel(r'$\varepsilon_{33}$ in $\%$')
-pylab.ylabel(r'$\sigma_{33}$ in MPa')
-pylab.grid(True)
-hat_t                   = Expression(('0.0','0.0','A'),A=0)
-stress_plot,strain_plot = [0],[0]
-P                       = Point(xlength/2., ylength/2., zlength/2.)
-for tau in numpy.linspace(0.,1.,5):
-	hat_t.A = 2000.*tau
-	L = hat_t[i]*del_u[i]*dA(1)
-	solve(a == L , disp, bc)
-	stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
-	strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
-	print stress_value, strain_value
-	stress_plot.append( stress_value )
-	strain_plot.append( strain_value*100. )
-	pylab.plot(strain_plot, stress_plot,'ro-',markersize=6, linewidth=3)
-	pylab.savefig('SpannungsDehnungsDiagramm_A1a.pdf')
+    fig = pylab.figure(1, figsize=(12,8))
+    fig.clf()
+    pylab.subplots_adjust(bottom=0.18)
+    pylab.subplots_adjust(left=0.18)
+    pylab.xlabel(r'$\varepsilon_{33}$ in $\%$')
+    pylab.ylabel(r'$\sigma_{33}$ in MPa')
+    pylab.grid(True)
+    hat_t                   = Expression(('0.0','0.0','A'),A=0)
+    stress_plot,strain_plot = [0],[0]
+    P                       = Point(xlength/2., ylength/2., zlength/2.)
+    for tau in numpy.linspace(0.,1.,5):
+        hat_t.A = 2000.*tau
+        L = hat_t[i]*del_u[i]*dA(1)
+        solve(a == L , disp, bc)
+        stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
+        strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
+        print stress_value, strain_value
+        stress_plot.append( stress_value )
+        strain_plot.append( strain_value*100. )
+        pylab.plot(strain_plot, stress_plot,'ro-',markersize=6, linewidth=3)
+        pylab.savefig('SpannungsDehnungsDiagramm_A1a.pdf')
 

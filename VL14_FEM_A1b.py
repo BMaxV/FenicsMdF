@@ -133,14 +133,14 @@ hat_t                   = Expression(('0.0','0.0','A'),A=0)
 stress_plot,strain_plot = [0],[0]
 P                       = Point(xlength/2., ylength/2., zlength/2.)
 for tau in numpy.linspace(0.,1.,5):
-	hat_t.A = 2000.*tau
-	L = hat_t[i]*del_u[i]*dA(1)
-	solve(a == L , disp, bc)
-	stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
-	strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
-	print stress_value, strain_value
-	stress_plot.append( stress_value )
-	strain_plot.append( strain_value*100. )
-	pylab.plot(strain_plot, stress_plot,'ro-',markersize=6, linewidth=3)
-	pylab.savefig('SpannungsDehnungsDiagramm.pdf')
+    hat_t.A      = 2000.*tau
+    L            = hat_t[i]*del_u[i]*dA(1)
+    solve(a      == L , disp, bc)
+    stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
+    strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
+    print stress_value, strain_value
+    stress_plot.append( stress_value )
+    strain_plot.append( strain_value*100. )
+    pylab.plot(strain_plot, stress_plot,'ro-',markersize=6, linewidth=3)
+    pylab.savefig('SpannungsDehnungsDiagramm.pdf')
 
