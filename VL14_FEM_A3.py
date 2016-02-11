@@ -73,7 +73,7 @@ def VoigtToTensor(A):
 	[ [A31,A36,A35], [A36,A32,A34], [A35,A34,A33]] ] \
 	])
 
-l=["Stahl","Aluminium","Magnesium"]
+l=["Stahl","Aluminium","Magnesium","CFK"]
 
 fig = pylab.figure(1, figsize=(12,8))
 for w in l:
@@ -123,23 +123,21 @@ for w in l:
         [0, 0, 0, 0, 1./G, 0],\
         [0, 0, 0, 0, 0, 1/G]  ])
 
-    if False:
+    if w=="CFK":
         print "CFK"
-        print "not defined yet"
-        xx  = 127922
-        n12 = 0.014
-        yy  = 6171
-        n21 = 0.284
-        xy  = n12*xx/(1-(n12*n21))
-        G   = 2232
-
+        E11 = 127922
+        nu12 = 0.014
+        E22  = 6171
+        nu21 = 0.284        
+        G12  = 2232
+        nu32 = 0.3683
         S_voigt = numpy.array([ \
-        [xx, xy, xy, 0, 0, 0],\
-        [xy, yy, xy, 0, 0, 0],\
-        [xy, xy, yy, 0, 0, 0],\
-        [0, 0, 0, G, 0, 0],\
-        [0, 0, 0, 0, G, 0],\
-        [0, 0, 0, 0, 0, G ]  ])
+        [1./E11, -nu12/E22, -nu12/E22, 0, 0, 0],\
+        [-nu21/E11, 1./E22, -nu32/E22, 0, 0, 0],\
+        [-nu21/E11,-nu32/E22, 1./E22, 0, 0, 0],\
+        [0, 0, 0, 2*(1-nu32)/E22, 0, 0],\
+        [0, 0, 0, 0, 1./G12, 0],\
+        [0, 0, 0, 0, 0, 1./G12]  ])
         
     C_voigt = numpy.linalg.inv(S_voigt)
     C = VoigtToTensor(C_voigt)
@@ -185,25 +183,34 @@ for w in l:
     #fig.clf()
     pylab.subplots_adjust(bottom=0.18)
     pylab.subplots_adjust(left=0.18)
-    pylab.xlabel(r'$\varepsilon_{33}$ in $\%$')
-    pylab.ylabel(r'$\sigma_{33}$ in MPa')
+    pylab.xlabel(r'$\varepsilon_{33}$ in mm')
+    pylab.ylabel(r'F in N')#$\sigma_{13}$ in MPa
     pylab.grid(True)
 
     hat_t                   = Expression(('0.0','0.0','A'),A=0)
     stress_plot,strain_plot = [0],[0]
-    P                       = Point(xlength/2., ylength/2., zlength/2.)
-
+    P                       = Point(xlength, ylength/2., zlength/2.)
+    ax=fig.add_subplot(111)
     for tau in numpy.linspace(0.,1.,5):
-        hat_t.A = 2000.*tau
+        hat_t.A = 20.*tau 
         L = hat_t[i]*del_u[i]*dA(1)
         solve(a == L , disp, bc)
-        stress_value = project(s_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
-        strain_value = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)[8]
+        projection1= project(s_,TensorFunctionSpace(mesh,'CG',1))(P)
+        print "p1",projection1
+        stress_value=abs(projection1[8])
+        print eps_
+        projection2 = project(eps_,TensorFunctionSpace(mesh,'CG',1))(P)
+        print "p2",projection2
+        strain_value = abs(projection2[8])
         print stress_value, strain_value
-        stress_plot.append( stress_value )
-        strain_plot.append( strain_value*100. )
+        stress_plot.append( stress_value)# multiply by area
+        strain_plot.append( strain_value*10000)
+        
     pylab.plot(strain_plot, stress_plot,label=w,markersize=6, linewidth=3)
-
-pylab.legend()
-pylab.savefig('SpannungsDehnungsDiagramm.png')
+    sp1,sp2=strain_plot, stress_plot
+    print sp2[-2],sp2[-1]," <y x> ",sp1[-2],sp1[-1]
+    d=(sp2[-2]-sp2[-1]) / (sp1[-2]-sp1[-1])
+    ax.annotate(str(round(d,2)),xy=(sp1[-1],sp2[-1]))
+pylab.legend(loc=4 )
+pylab.savefig('SpannungsDehnungsDiagrammA3.png')
 
